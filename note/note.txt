@@ -1,0 +1,3 @@
+thuoc giao dien chi check, logic xu ly de backend
+if(!decimal.TryParse(Console.ReadLine(),out decimal a))
+xem lai 

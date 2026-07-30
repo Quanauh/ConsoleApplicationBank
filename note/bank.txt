@@ -1,0 +1,253 @@
+// using System;
+// using Oracle.ManagedDataAccess.Client;
+ 
+// //Kết quả giao dịch - dùng chung cho mọi thao tác backend trả về
+// enum KetQuaGiaoDich
+// {
+//     ThanhCong,
+//     SoTaiKhoanDaTonTai,
+//     SoTaiKhoanKhongTonTai,
+//     SaiMatKhau,
+//     SoTienKhongHopLe,
+//     SoDuKhongDu,
+//     ChuyenChoChinhMinh
+// }
+ 
+// class AccountDAO
+// {
+//     public bool TonTai(string stk)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+ 
+//         string sql = "SELECT COUNT(*) FROM TAI_KHOAN WHERE SoTK=:stk";
+ 
+//         using OracleCommand cmd = new OracleCommand(sql, conn);
+//         cmd.Parameters.Add(":stk", stk);
+ 
+//         int dem = Convert.ToInt32(cmd.ExecuteScalar());
+ 
+//         return dem > 0;
+//     }
+ 
+//     //Tạo khách hàng + tài khoản trong cùng 1 transaction
+//     //(Oracle không cho chạy nhiều câu INSERT cách nhau bằng ";" trong 1 OracleCommand,
+//     //nên phải tách 2 lệnh, và gộp lại bằng transaction để đảm bảo toàn vẹn)
+//     public void ThemTaiKhoan(string stk, string mk)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+//         using OracleTransaction tran = conn.BeginTransaction();
+ 
+//         try
+//         {
+//             using (OracleCommand cmdKh = new OracleCommand(
+//                 "INSERT INTO KHACH_HANG (HoTen) VALUES ('Khach')", conn, tran))
+//             {
+//                 cmdKh.ExecuteNonQuery();
+//             }
+ 
+//             using (OracleCommand cmdTk = new OracleCommand(
+//                 @"INSERT INTO TAI_KHOAN (SoTK, MaKH, MatKhau)
+//                   VALUES (:stk, seq_khach_hang.CURRVAL, :mk)", conn, tran))
+//             {
+//                 cmdTk.Parameters.Add(":stk", stk);
+//                 cmdTk.Parameters.Add(":mk", mk);
+//                 cmdTk.ExecuteNonQuery();
+//             }
+ 
+//             tran.Commit();
+//         }
+//         catch
+//         {
+//             tran.Rollback();
+//             throw;
+//         }
+//     }
+ 
+//     public bool KiemTraMatKhau(string stk, string mk)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+ 
+//         string sql = "SELECT COUNT(*) FROM TAI_KHOAN WHERE SoTK=:stk AND MatKhau=:mk";
+ 
+//         using OracleCommand cmd = new OracleCommand(sql, conn);
+//         cmd.Parameters.Add(":stk", stk);
+//         cmd.Parameters.Add(":mk", mk);
+ 
+//         int dem = Convert.ToInt32(cmd.ExecuteScalar());
+//         return dem > 0;
+//     }
+ 
+//     public decimal LaySoDu(string stk)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+ 
+//         string sql = "SELECT SoDu FROM TAI_KHOAN WHERE SoTK=:stk";
+ 
+//         using OracleCommand cmd = new OracleCommand(sql, conn);
+//         cmd.Parameters.Add(":stk", stk);
+ 
+//         return Convert.ToDecimal(cmd.ExecuteScalar());
+//     }
+ 
+//     //Cộng/trừ số dư 1 tài khoản. soTienThayDoi âm nghĩa là trừ tiền.
+//     public void CapNhatSoDu(string stk, decimal soTienThayDoi)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+ 
+//         string sql = "UPDATE TAI_KHOAN SET SoDu = SoDu + :delta WHERE SoTK=:stk";
+ 
+//         using OracleCommand cmd = new OracleCommand(sql, conn);
+//         cmd.Parameters.Add(":delta", soTienThayDoi);
+//         cmd.Parameters.Add(":stk", stk);
+ 
+//         cmd.ExecuteNonQuery();
+//     }
+ 
+//     //Trừ tiền tài khoản nguồn + cộng tiền tài khoản đích trong cùng 1 transaction,
+//     //tránh trường hợp trừ được nhưng cộng lỗi làm mất tiền
+//     public void ChuyenTien(string stk1, string stk2, decimal soTien)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+//         using OracleTransaction tran = conn.BeginTransaction();
+ 
+//         try
+//         {
+//             using (OracleCommand cmdTru = new OracleCommand(
+//                 "UPDATE TAI_KHOAN SET SoDu = SoDu - :soTien WHERE SoTK=:stk", conn, tran))
+//             {
+//                 cmdTru.Parameters.Add(":soTien", soTien);
+//                 cmdTru.Parameters.Add(":stk", stk1);
+//                 cmdTru.ExecuteNonQuery();
+//             }
+ 
+//             using (OracleCommand cmdCong = new OracleCommand(
+//                 "UPDATE TAI_KHOAN SET SoDu = SoDu + :soTien WHERE SoTK=:stk", conn, tran))
+//             {
+//                 cmdCong.Parameters.Add(":soTien", soTien);
+//                 cmdCong.Parameters.Add(":stk", stk2);
+//                 cmdCong.ExecuteNonQuery();
+//             }
+ 
+//             tran.Commit();
+//         }
+//         catch
+//         {
+//             tran.Rollback();
+//             throw;
+//         }
+//     }
+ 
+//     //Ghi lại lịch sử giao dịch. stkDoi truyền null cho nạp/rút (không có tài khoản đối ứng)
+//     public void GhiGiaoDich(string stk, string? stkDoi, string loaiGd, decimal soTien)
+//     {
+//         using OracleConnection conn = Database.GetConnection();
+ 
+//         string sql =
+//             @"INSERT INTO GIAO_DICH (SoTK, SoTK_Doi, LoaiGD, SoTien, SoDuSauGD)
+//               VALUES (:stk, :stkDoi, :loai, :soTien,
+//                       (SELECT SoDu FROM TAI_KHOAN WHERE SoTK = :stk))";
+ 
+//         using OracleCommand cmd = new OracleCommand(sql, conn);
+//         cmd.Parameters.Add(":stk", stk);
+//         cmd.Parameters.Add(":stkDoi", (object?)stkDoi ?? DBNull.Value);
+//         cmd.Parameters.Add(":loai", loaiGd);
+//         cmd.Parameters.Add(":soTien", soTien);
+ 
+//         cmd.ExecuteNonQuery();
+//     }
+// }
+ 
+// //Quản lý ngân hàng - toàn bộ logic nghiệp vụ và validate nằm ở đây,
+// //không Console.WriteLine, chỉ trả về KetQuaGiaoDich cho UI tự quyết định hiển thị gì.
+// //Không tự đụng vào OracleCommand/OracleConnection - mọi truy vấn đều đi qua AccountDAO.
+// class BankManager
+// {
+//     AccountDAO dao = new AccountDAO();
+ 
+//     public bool Timstk(string stk)
+//     {
+//         return dao.TonTai(stk);
+//     }
+ 
+//     //Tạo tài khoản
+//     public KetQuaGiaoDich TaoTk(string stk, string mk)
+//     {
+//         if (dao.TonTai(stk))
+//             return KetQuaGiaoDich.SoTaiKhoanDaTonTai;
+ 
+//         dao.ThemTaiKhoan(stk, mk);
+//         return KetQuaGiaoDich.ThanhCong;
+//     }
+ 
+//     //Xử lý đăng nhập (gộp check tồn tại + check mật khẩu)
+//     public KetQuaGiaoDich DangNhap(string stk, string mk)
+//     {
+//         if (!Timstk(stk))
+//             return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+ 
+//         if (!dao.KiemTraMatKhau(stk, mk))
+//             return KetQuaGiaoDich.SaiMatKhau;
+ 
+//         return KetQuaGiaoDich.ThanhCong;
+//     }
+ 
+//     //Xử lý nạp tiền (check luôn cả sự tồn tại của tài khoản để dùng được cả khi chưa đăng nhập)
+//     public KetQuaGiaoDich Naptien(string stk, decimal a)
+//     {
+//         if (!Timstk(stk))
+//             return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+ 
+//         if (a <= 0)
+//             return KetQuaGiaoDich.SoTienKhongHopLe;
+ 
+//         dao.CapNhatSoDu(stk, a);
+//         dao.GhiGiaoDich(stk, null, "NAP", a);
+//         return KetQuaGiaoDich.ThanhCong;
+//     }
+ 
+//     //Xử lý rút tiền
+//     public KetQuaGiaoDich RutTien(string stk, decimal a)
+//     {
+//         if (!Timstk(stk))
+//             return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+ 
+//         if (a <= 0)
+//             return KetQuaGiaoDich.SoTienKhongHopLe;
+ 
+//         if (a > dao.LaySoDu(stk))
+//             return KetQuaGiaoDich.SoDuKhongDu;
+ 
+//         dao.CapNhatSoDu(stk, -a);
+//         dao.GhiGiaoDich(stk, null, "RUT", a);
+//         return KetQuaGiaoDich.ThanhCong;
+//     }
+ 
+//     //Xử lý chuyển tiền
+//     public KetQuaGiaoDich ChuyenTien(string stk1, string stk2, decimal a)
+//     {
+//         if (stk1 == stk2)
+//             return KetQuaGiaoDich.ChuyenChoChinhMinh;
+ 
+//         if (!Timstk(stk2))
+//             return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+ 
+//         if (a <= 0)
+//             return KetQuaGiaoDich.SoTienKhongHopLe;
+ 
+//         if (a > dao.LaySoDu(stk1))
+//             return KetQuaGiaoDich.SoDuKhongDu;
+ 
+//         dao.ChuyenTien(stk1, stk2, a);
+//         dao.GhiGiaoDich(stk1, stk2, "CHUYEN", a);
+//         return KetQuaGiaoDich.ThanhCong;
+//     }
+ 
+//     //Xem số dư
+//     public decimal XemSodu(string stk)
+//     {
+//         return dao.LaySoDu(stk);
+//     }
+// }
+ 
+// //UI - chỉ nhập liệu, gọi backend, và hiển thị kết quả dựa trên KetQuaGiaoDich trả về.
+// //Không còn logic nghiệp vụ (không check tồn tại tài khoản, không so sánh số dư, ...) ở đây nữa.
