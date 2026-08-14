@@ -1,0 +1,228 @@
+using System;
+using System.Collections.Generic;
+using Oracle.ManagedDataAccess.Client;
+
+enum TransactionResult
+{
+    Success,
+    AccountAlreadyExists,
+    AccountNotFound,
+    IncorrectPassword,
+    InvalidAmount,
+    InsufficientBalance,
+    CannotTransferToSelf,
+    PhoneAlreadyExists,
+    EmailAlreadyExists,
+    SystemError,
+    InvalidDate
+}
+
+class BankManager
+{
+    AccountDAO acd = new AccountDAO();
+
+    public bool AccountExists(string stk)
+    {
+        return acd.Exists(stk);
+    }
+
+    public TransactionResult CreateAccount(string ten, string sdt, string email, string ngaysinh, string diachi, string stk, string mk)
+    {
+        try
+        {
+            if (acd.Exists(stk)){ 
+                Logger.Ghi("WARNING", "TaoTaiKhoan", $"STK {stk} da ton tai");
+                return TransactionResult.AccountAlreadyExists;
+            }
+            else
+            {
+                acd.CreateAccount(ten, sdt, email, ngaysinh, diachi, stk, mk);
+                Logger.Ghi("INFO","TaoTaiKhoan","Tao tai khoan thanh cong");
+                return TransactionResult.Success;
+            }
+        }
+        catch (OracleException ex)
+        {
+            Console.WriteLine($"Error Number: {ex.Number}");
+            Console.WriteLine($"Error Message: {ex.Message}");
+            if (ex.Number > 0)
+            {
+                if (ex.Message.Contains("UQ_KHACHHANG_SDT")){
+                    Logger.Ghi("WARNING","TaoTaiKhoan",$"So dien thoai {sdt} da ton tai");
+                    return TransactionResult.PhoneAlreadyExists;
+                }
+                if (ex.Message.Contains("UQ_KHACHHANG_EMAIL")){
+                    Logger.Ghi("WARNING","Tao tai khoan",$"Email {email} da ton tai");
+                    return TransactionResult.EmailAlreadyExists;
+                }
+
+                if (ex.Message.Contains("PK_TAI_KHOAN")){
+                    Logger.Ghi("WARNING","Tao tai khoan",$"So tai khoan {stk} da ton tai");
+                    return TransactionResult.AccountAlreadyExists;
+                }
+                if (ex.Message.Contains("month")){
+                     Logger.Ghi("WARNING","Tao tai khoan","Ngay sinh khong hop le");
+                    return TransactionResult.InvalidDate;
+                }
+            }
+            Logger.Ghi("ERROR", "TaoTaiKhoan", $"Loi he thong khi tao STK {stk}", ex.ToString());
+            return TransactionResult.SystemError;
+        }
+    }
+    //Đăng nhập
+    public TransactionResult Login(string stk, string mk)
+    {
+        try{
+        if (!AccountExists(stk)){
+            Logger.Ghi("WARNING","Dang nhap",$"So tai khoan {stk} khong ton tai");
+            return TransactionResult.AccountNotFound;
+        }
+
+        if (!acd.checkPassWord(stk, mk)){
+            Logger.Ghi("WARNING","Dang Nhap",$"Mat khau khong khop voi so tai khoan {stk}");
+            return TransactionResult.IncorrectPassword;
+        }
+        Logger.Ghi("INFO","Dang Nhap",$"stk {stk} Dang nhap thanh cong");
+        return TransactionResult.Success;
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "Dang Nhap", $"Loi he thong khi STK {stk} dang nhap", ex.ToString());
+            return TransactionResult.SystemError;
+        }
+    }
+    // Nạp tiền
+    public TransactionResult Deposit(string stk, decimal a)
+    {
+        try{
+        if (!AccountExists(stk)){
+            Logger.Ghi("WARNING","Nap tien",$"So tai khoan {stk} khong ton tai, nap tien that bai ");
+            return TransactionResult.AccountNotFound;
+        }
+        if (a <= 0){
+            Logger.Ghi("WARNING","Nap tien",$"So tai khoan {stk} nap tien that bai, so tien {a} khong hop le");
+            return TransactionResult.InvalidAmount;
+        }
+        acd.Deposit(stk, a);
+        Logger.Ghi("INFO","Nap tien",$"So tai khoan {stk} nap tien thanh cong,so tien {a}");
+        return TransactionResult.Success;
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "Nap tien", $"Loi he thong khi STK {stk} nap tien", ex.ToString());
+            return TransactionResult.SystemError;
+        }
+    }
+    // Rút tiền
+    public TransactionResult Withdraw(string stk, decimal a)
+    {
+        try{
+        if (!AccountExists(stk)){
+            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} khong ton tai,rut tien that bai");
+            return TransactionResult.AccountNotFound;
+        }
+        if (a <= 0)
+            {
+            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien that bai, so tien {a} khong hop le");
+            return TransactionResult.InvalidAmount;
+            }
+        if (a > acd.GetBalance(stk))
+            {
+            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien that bai, so du khong du {a}");
+            return TransactionResult.InsufficientBalance;
+            }
+        acd.Withdraw(stk, a);
+        Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien thanh cong");
+        return TransactionResult.Success;
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "Rut tien", $"Loi he thong khi STK {stk} rut tien", ex.ToString());
+            return TransactionResult.SystemError;
+        }
+    }
+    // Chuyển tiền
+    public TransactionResult TransferMoney(string stk1, string stk2, decimal a)
+    {
+        try{
+        if (stk1 == stk2)
+            {
+            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} khong the chuyen cho chinh minh,chuyen tien that bai");
+            return TransactionResult.CannotTransferToSelf;
+            }
+        if (!AccountExists(stk2))
+            {
+            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk2} khong ton tai,chuyen tien that bai");
+            return TransactionResult.AccountNotFound;
+            }
+        if (a <= 0)
+            {
+            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} chuyen tien that bai,so tien khong hop le :{a}");
+            return TransactionResult.InvalidAmount;
+            }
+        if (a > acd.GetBalance(stk1)){
+            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} khong du so du {a},chuyen tien that bai");
+            return TransactionResult.InsufficientBalance;
+        }
+        acd.TransferMoney(stk1, stk2, a);
+        Logger.Ghi("INFO","Chuyen tien",$"So tai khoan {stk1} chuyen tien thanh cong cho {stk2},so tien:{a}");
+        return TransactionResult.Success;
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "DangNhap", $"Loi he thong khi STK {stk1} chuyen tien cho {stk2}", ex.ToString());
+            return TransactionResult.SystemError;
+        }
+    }
+
+    public decimal GetBalance(string stk)
+    {
+        try{
+        Logger.Ghi("INFO", "Xem so du", $"Xem so du {stk} thanh cong");
+        return acd.GetBalance(stk);
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "DangNhap", $"Loi he thong khi lay so du {stk}", ex.ToString());
+            return -1;
+        }
+    }
+
+    public AccountInfo? GetAccountInfor(string stk)
+    {
+        try{
+        Logger.Ghi("INFO", "Xem thong tin", $"Xem thong tin {stk} thanh cong");
+        return acd.GetAccountInfor(stk);
+        }
+        catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "Lay thong tin", $"Loi he thong khi lay thong tin {stk}", ex.ToString());
+            return null;
+        }
+    }
+
+    public List<TransactionHistory> GetTransactionHistory(string stk)
+    {
+        try{
+        Logger.Ghi("INFO", "Xem lich su", $"Xem lich su giao dich {stk} thanh cong");
+        List<TransactionHistory> ds = acd.GetTransactionHistory(stk);
+        foreach (TransactionHistory gd in ds)
+        {
+            gd.Chieu = gd.LoaiGD switch
+            {
+                "CHUYEN" => gd.SoTK == stk ? "Chuyen di" : "Nhan ve",
+                "NAP" => "Nap tien",
+                "RUT" => "Rut tien",
+                _ => gd.LoaiGD
+            };
+        }
+        return ds;
+    }
+    catch(Exception ex)
+        {
+            Logger.Ghi("ERROR", "Lay lich su giao dich", $"Loi he thong khi lay lich su giao dich {stk}", ex.ToString());
+            return new List<TransactionHistory>();
+        }
+    }
+
+}

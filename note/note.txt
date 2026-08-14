@@ -1,3 +1,18 @@
 thuoc giao dien chi check, logic xu ly de backend
 if(!decimal.TryParse(Console.ReadLine(),out decimal a))
 xem lai 
+
+// so du sau gd cho bang moi, la bang lich su x
+/ ko can trigger, nextVAl de trong code x
+/ tim hieu database dapper x
+/ loi trong chuyen tien   X
+/ thu tuc (Strore Proceduce) voi database
+/ chuyen tien nen lam voi transaction X
+/ dat ten bien bang TA x
+/ to chuc lai code   X
+// logging, try catch và exception handling
+
+
+
+// Lich su giao dich chi ghi chuyen nhan, khong hien thi so du x
+

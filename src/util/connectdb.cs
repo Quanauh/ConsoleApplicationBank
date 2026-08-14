@@ -1,5 +1,5 @@
 using Oracle.ManagedDataAccess.Client;
-
+using Dapper;
 class Database
 {
     private static string conStr =

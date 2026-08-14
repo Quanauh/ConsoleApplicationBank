@@ -1,0 +1,7 @@
+[2026-08-13 22:04:31] [INFO] Khoi dong: Khoi dong chuong trinh thanh cong
+[2026-08-13 22:04:40] [WARNING] Dang Nhap: Mat khau khong khop voi so tai khoan doquanghuan
+[2026-08-13 22:04:49] [WARNING] Dang Nhap: Mat khau khong khop voi so tai khoan doquanghuan2
+[2026-08-13 22:04:58] [WARNING] Dang nhap: So tai khoan  khong ton tai
+[2026-08-13 22:05:03] [INFO] Dang Nhap: stk doquanghuan Dang nhap thanh cong
+[2026-08-13 22:05:11] [INFO] Chuyen tien: So tai khoan doquanghuan chuyen tien thanh cong cho doquanghuan1,so tien:20000
+[2026-08-13 22:05:21] [INFO] Nap tien: So tai khoan doquanghuan nap tien thanh cong,so tien 20000

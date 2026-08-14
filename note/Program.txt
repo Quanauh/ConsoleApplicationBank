@@ -1,321 +1,389 @@
-﻿    //Tài khoản khách hàng
-    class BankAccount
+﻿using System;
+using System.Collections.Generic;
+
+//Kết quả giao dịch - dùng chung cho mọi thao tác backend trả về
+enum KetQuaGiaoDich
+{
+    ThanhCong,
+    SoTaiKhoanDaTonTai,
+    SoTaiKhoanKhongTonTai,
+    SaiMatKhau,
+    SoTienKhongHopLe,
+    SoDuKhongDu,
+    ChuyenChoChinhMinh
+}
+
+//Tài khoản khách hàng
+class BankAccount
+{
+    private string tkKhachHang;
+    private string matkhau;
+    private decimal Sodu;
+    public BankAccount(string a, string mk)
     {
-        private string tkKhachHang;
-        private string matkhau;
-        private decimal Sodu;
-        public BankAccount(string a,string mk)
-        {
-            this.tkKhachHang=a;
-            this.Sodu=0;
-            this.matkhau=mk;
-        }
-        public string getTk()
-        {
-            return tkKhachHang;
-        }
-        public decimal getSd()
-        {
-            return Sodu;
-        }
-        public void Naptien(decimal a)
-        {
-            Sodu+=a;
-        }
-        public void rt(decimal a)
-        {
-            Sodu-=a;
-        }
-        public bool checkMk(string mk)
-        {
-            return matkhau==mk;
-        }
+        this.tkKhachHang = a;
+        this.Sodu = 0;
+        this.matkhau = mk;
     }
-    //Quản lý ngân hàng
-    class BankManager
+    public string getTk()
     {
-        private Dictionary<string,BankAccount> ds= new Dictionary<string,BankAccount>();
-        public bool Timstk(string stk)
+        return tkKhachHang;
+    }
+    public decimal getSd()
+    {
+        return Sodu;
+    }
+    public void Naptien(decimal a)
+    {
+        Sodu += a;
+    }
+    public void rt(decimal a)
+    {
+        Sodu -= a;
+    }
+    public bool checkMk(string mk)
+    {
+        return matkhau == mk;
+    }
+}
+
+//Quản lý ngân hàng - toàn bộ logic nghiệp vụ và validate nằm ở đây,
+//không Console.WriteLine, chỉ trả về KetQuaGiaoDich cho UI tự quyết định hiển thị gì
+class BankManager
+{
+    private Dictionary<string, BankAccount> ds = new Dictionary<string, BankAccount>();
+
+    public bool Timstk(string stk)
+    {
+        return ds.ContainsKey(stk);
+    }
+
+    //Tạo tài khoản
+    public KetQuaGiaoDich TaoTk(string stk, string mk)
+    {
+        if (Timstk(stk))
+            return KetQuaGiaoDich.SoTaiKhoanDaTonTai;
+
+        ds[stk] = new BankAccount(stk, mk);
+        return KetQuaGiaoDich.ThanhCong;
+    }
+
+    //Xử lý đăng nhập (gộp check tồn tại + check mật khẩu)
+    public KetQuaGiaoDich DangNhap(string stk, string mk)
+    {
+        if (!Timstk(stk))
+            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+
+        if (!ds[stk].checkMk(mk))
+            return KetQuaGiaoDich.SaiMatKhau;
+
+        return KetQuaGiaoDich.ThanhCong;
+    }
+
+    //Xử lý nạp tiền (check luôn cả sự tồn tại của tài khoản để dùng được cả khi chưa đăng nhập)
+    public KetQuaGiaoDich Naptien(string stk, decimal a)
+    {
+        if (!Timstk(stk))
+            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+
+        if (a <= 0)
+            return KetQuaGiaoDich.SoTienKhongHopLe;
+
+        ds[stk].Naptien(a);
+        return KetQuaGiaoDich.ThanhCong;
+    }
+
+    //Xử lý rút tiền
+    public KetQuaGiaoDich RutTien(string stk, decimal a)
+    {
+        if (!Timstk(stk))
+            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+
+        if (a <= 0)
+            return KetQuaGiaoDich.SoTienKhongHopLe;
+
+        if (a > ds[stk].getSd())
+            return KetQuaGiaoDich.SoDuKhongDu;
+
+        ds[stk].rt(a);
+        return KetQuaGiaoDich.ThanhCong;
+    }
+
+    //Xử lý chuyển tiền
+    public KetQuaGiaoDich ChuyenTien(string stk1, string stk2, decimal a)
+    {
+        if (stk1 == stk2)
+            return KetQuaGiaoDich.ChuyenChoChinhMinh;
+
+        if (!Timstk(stk2))
+            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
+
+        if (a <= 0)
+            return KetQuaGiaoDich.SoTienKhongHopLe;
+
+        if (a > ds[stk1].getSd())
+            return KetQuaGiaoDich.SoDuKhongDu;
+
+        ds[stk1].rt(a);
+        ds[stk2].Naptien(a);
+        return KetQuaGiaoDich.ThanhCong;
+    }
+
+    //Xem số dư
+    public decimal XemSodu(string stk)
+    {
+        return ds[stk].getSd();
+    }
+}
+
+//UI - chỉ nhập liệu, gọi backend, và hiển thị kết quả dựa trên KetQuaGiaoDich trả về.
+//Không còn logic nghiệp vụ (không check tồn tại tài khoản, không so sánh số dư, ...) ở đây nữa.
+class Program
+{
+    static BankManager qlnh = new BankManager();
+
+    //giao diện ban đầu
+    static void gdMenu()
+    {
+        Console.WriteLine("        ===NganHangHuanBank===      ");
+        Console.WriteLine("1.Tao tai khoan");
+        Console.WriteLine("2.Dang nhap tai khoan");
+        Console.WriteLine("3.Nap tien");
+        Console.WriteLine("0.Thoat");
+        Console.Write("Chon chuc nang: ");
+    }
+
+    //Giao diện tạo tài khoản
+    static void gdTaoTK()
+    {
+        Console.WriteLine("        ===TaoTK===      ");
+        Console.Write("Nhap so tai khoan muon tao: ");
+        string s = Console.ReadLine()!;
+        Console.Write("Nhap mat khau muon dat: ");
+        string mk = Console.ReadLine()!;
+
+        var kq = qlnh.TaoTk(s, mk);
+        switch (kq)
         {
-            return ds.ContainsKey(stk);
-        }
-        //Tạo tài khoản
-        public void TaoTk(string stk,string mk)
-        {
-            if (Timstk(stk) == false)
-            {
-                //Số tài khoản sẽ định danh cho 1 tài khoản
-                ds[stk]=new BankAccount(stk,mk);
+            case KetQuaGiaoDich.ThanhCong:
                 Console.WriteLine("Tao tai khoan thanh cong");
-            }
-            else
-            {
+                break;
+            case KetQuaGiaoDich.SoTaiKhoanDaTonTai:
                 Console.WriteLine("So tai khoan da ton tai");
-            }        
-        }
-        public bool checkDangNhap(string stk,string mk)
-        {
-            return Timstk(stk)&&ds[stk].checkMk(mk);
-        }
-        //Xử lý nạp tiền
-        public void Naptien(string stk,decimal a)
-        {
-            if (a <= 0)
-            {
-                Console.WriteLine("So tien khong hop le");
-                return;
-            }
-            else{
-            Console.WriteLine("Nap tien thanh cong");
-            ds[stk].Naptien(a);
-            }
-        }
-        //Xử lý rút tiền
-        public void RutTien(string stk,decimal a)
-        {
-            if (a <= 0)
-            {
-                Console.WriteLine("So tien khong hop le");
-                return;
-            }
-            else if (a > ds[stk].getSd())
-            {
-                Console.WriteLine("So du khong du");
-                return;
-            }
-            else
-            {
-                Console.WriteLine("Rut tien thanh cong");
-                ds[stk].rt(a);
-            }
-        }
-        //Xử lý chuyển tiền
-        public void ChuyenTien(string stk1, string stk2,decimal a)
-        {
-            if (a <= 0)
-            {
-                Console.WriteLine("So tien khong hop le");
-                return;
-            }
-            if (a > ds[stk1].getSd())
-            {
-                Console.WriteLine("So du cua ban khong du");
-                return;
-            }
-            else{
-            ds[stk1].rt(a);
-            ds[stk2].Naptien(a);
-            Console.WriteLine("Chuyen tien thanh cong");
-            Console.WriteLine($"So du cua ban la: {ds[stk1].getSd()}");
-            }
-        }
-        //Xử lý xem số dư
-        public decimal XemSodu(string stk)
-        {
-            return ds[stk].getSd();
+                break;
         }
     }
-    class Program
-    {   
-        static BankManager qlnh=new BankManager();
-        //giao diện ban đầu
-        static void gdMenu()
+
+    //Giao diện đăng nhập
+    static void gdDangNhap()
+    {
+        Console.WriteLine("        ===Dang Nhap===      ");
+        Console.Write("Nhap stk cua ban: ");
+        string stk = Console.ReadLine()!;
+        Console.Write("Nhap mat khau cua ban: ");
+        string mk = Console.ReadLine()!;
+
+        var kq = qlnh.DangNhap(stk, mk);
+        switch (kq)
         {
-            Console.WriteLine("        ===NganHangHuanBank===      ");
-            Console.WriteLine("1.Tao tai khoan");
-            Console.WriteLine("2.Dang nhap tai khoan");
-            Console.WriteLine("3.Nap tien");
-            Console.WriteLine("0.Thoat");
-            Console.Write("Chon chuc nang: ");
-        }
-        //Giao diện tạo tài khoản
-        static void gdTaoTK()
-        {
-            Console.WriteLine("        ===TaoTK===      ");
-            Console.Write("Nhap so tai khoan muon tao: ");
-            string s=Console.ReadLine()!;
-            if (qlnh.Timstk(s))
-            {
-                Console.WriteLine("So tai khoan da ton tai");
-                return;
-            }
-            Console.Write("Nhap mat khau muon dat: ");
-            string mk=Console.ReadLine()!;
-            qlnh.TaoTk(s,mk);
-        }
-        //Giao diện đăng nhập
-        static void gdDangNhap()
-        {
-            Console.WriteLine("        ===Dang Nhap===      ");
-            Console.Write("Nhap stk cua ban: ");
-            string stk=Console.ReadLine()!;
-            if (qlnh.Timstk(stk) == true)
-            {
-                Console.Write("Nhap mat khau cua ban: ");
-                string mk=Console.ReadLine()!;
-                if (qlnh.checkDangNhap(stk, mk))
-                {
-                    Console.WriteLine("Ban da dang nhap thanh cong");
-                    gdXuly(stk);
-                }
-                else
-                {
-                    Console.WriteLine("Ban da nhap sai mat khau");
-                    return;
-                }
-            }
-            else
-            {
+            case KetQuaGiaoDich.ThanhCong:
+                Console.WriteLine("Ban da dang nhap thanh cong");
+                gdXuly(stk);
+                break;
+            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
                 Console.WriteLine("Khong tim thay tai khoan");
-                return;
-            }  
+                break;
+            case KetQuaGiaoDich.SaiMatKhau:
+                Console.WriteLine("Ban da nhap sai mat khau");
+                break;
         }
-        //Giao diện xử lý sau khi đăng nhập
-        static void gdXuly(string stk)
+    }
+
+    //Giao diện xử lý sau khi đăng nhập
+    static void gdXuly(string stk)
+    {
+        Console.WriteLine($"        ===Xin Chao {stk}===      ");
+        Console.WriteLine("1. Chuyen tien");
+        Console.WriteLine("2. Nap Tien");
+        Console.WriteLine("3. Rut tien");
+        Console.WriteLine("4. Xem so du");
+        Console.WriteLine("0. Quay lai");
+        Console.Write("Chon chuc nang: ");
+        string t = Console.ReadLine()!;
+        switch (t)
         {
-            Console.WriteLine($"        ===Xin Chao {stk}===      ");
-            Console.WriteLine("1. Chuyen tien");
-            Console.WriteLine("2. Nap Tien");
-            Console.WriteLine("3. Rut tien");
-            Console.WriteLine("4. Xem so du");
-            Console.WriteLine("0. Quay lai");
-            Console.Write("Chon chuc nang: ");
-            string t=Console.ReadLine()!;
-            switch (t)
-            {
-                case "1":
+            case "1":
                 gdChuyentien(stk);
                 break;
-                case "2":
+            case "2":
                 gdNapTien2(stk);
                 break;
-                case "3":
+            case "3":
                 gdRuttien(stk);
                 break;
-                case "4":
+            case "4":
                 gdXemsodu(stk);
                 break;
-                case "0":
+            case "0":
                 break;
-                default:
+            default:
                 Console.WriteLine("Lua chon khong hop le!");
                 gdXuly(stk);
                 break;
-            }
         }
-        //Giao diện chuyển tiền
-        static void gdChuyentien(string stk)
+    }
+
+    //Giao diện chuyển tiền
+    static void gdChuyentien(string stk)
+    {
+        Console.WriteLine("        ===Chuyen Tien===      ");
+        Console.Write("Nhap so tai khoan can chuyen: ");
+        string stk2 = Console.ReadLine()!;
+        Console.Write("Nhap so tien can chuyen: ");
+        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
         {
-            Console.WriteLine("        ===Chuyen Tien===      ");
-            Console.Write("Nhap so tai khoan can chuyen: ");
-            string stk2=Console.ReadLine()!;
-            
-            if (stk == stk2)
-            {
-                Console.WriteLine("Ban khong the chuyen tien cho chinh minh");
-                gdXuly(stk);
-                return;
-            }
-            if (qlnh.Timstk(stk2) == false)
-            {
-                Console.WriteLine("So tai khoan khong ton tai");
-                gdXuly(stk);
-                return;
-            }
-            else{
-            Console.Write("Nhap so tien can chuyen: ");
-            if(!decimal.TryParse(Console.ReadLine(),out decimal a))
-                {
-                    Console.WriteLine("Vui long nhap so tien hop le");
-                    Console.WriteLine(a);
-                    gdXuly(stk);
-                    return;
-                }
-            qlnh.ChuyenTien(stk,stk2,a);
-            }
+            Console.WriteLine("Vui long nhap so tien hop le");
             gdXuly(stk);
-        }
-        //Giao diện rút tiền
-        static void gdRuttien(string stk)
-        {
-            Console.WriteLine("        ===Rut Tien===      ");
-            Console.Write("Nhap so tien can rut: ");
-            if(!decimal.TryParse(Console.ReadLine(),out decimal a))
-            {
-                Console.WriteLine("Vui long nhap so tien hop le");
-                gdXuly(stk);
-                return;
-            }
-            ;
-            qlnh.RutTien(stk,a);
-            gdXuly(stk);
-        }
-        //Giao diện nạp tiền khi ko đăng nhập
-        static void gdNapTien()
-        {
-            Console.WriteLine("        ===Nap Tien===      ");
-            Console.Write("Nhap so tai khoan can nap: ");
-            string stk=Console.ReadLine()!;
-            if(qlnh.Timstk(stk)){
-            Console.WriteLine("        ===Nap Tien===      ");
-            Console.Write("Nhap so tien can nap: ");
-            if(!decimal.TryParse(Console.ReadLine(),out decimal a))
-                {
-                    Console.WriteLine("Vui long nhap so tien hop le");
-                    gdXuly(stk);
-                    return;
-                }
-            qlnh.Naptien(stk,a);
             return;
-            }
-            else Console.WriteLine("So tai khoan khong ton tai");
         }
-        //Giao diện nạp tiền chính khi đã đăng nhập
-        static void gdNapTien2(string stk)
+
+        var kq = qlnh.ChuyenTien(stk, stk2, a);
+        switch (kq)
         {
-            Console.WriteLine("        ===Nap Tien===      ");
-            Console.Write("Nhap so tien can nap: ");
-            if(!decimal.TryParse(Console.ReadLine(),out decimal a))
-                {
-                    Console.WriteLine("Vui long nhap so tien hop le");
-                    gdXuly(stk);
-                    return;
-                }
-            qlnh.Naptien(stk,a);
+            case KetQuaGiaoDich.ThanhCong:
+                Console.WriteLine("Chuyen tien thanh cong");
+                Console.WriteLine($"So du cua ban la: {qlnh.XemSodu(stk)}");
+                break;
+            case KetQuaGiaoDich.ChuyenChoChinhMinh:
+                Console.WriteLine("Ban khong the chuyen tien cho chinh minh");
+                break;
+            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
+                Console.WriteLine("So tai khoan khong ton tai");
+                break;
+            case KetQuaGiaoDich.SoTienKhongHopLe:
+                Console.WriteLine("So tien khong hop le");
+                break;
+            case KetQuaGiaoDich.SoDuKhongDu:
+                Console.WriteLine("So du cua ban khong du");
+                break;
+        }
+        gdXuly(stk);
+    }
+
+    //Giao diện rút tiền
+    static void gdRuttien(string stk)
+    {
+        Console.WriteLine("        ===Rut Tien===      ");
+        Console.Write("Nhap so tien can rut: ");
+        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
+        {
+            Console.WriteLine("Vui long nhap so tien hop le");
             gdXuly(stk);
+            return;
         }
-        //Giao diện xem số dư
-        static void gdXemsodu(string stk)
+
+        var kq = qlnh.RutTien(stk, a);
+        switch (kq)
         {
-            decimal sd=qlnh.XemSodu(stk);
-            Console.WriteLine($"So du cua ban la: {sd}");
+            case KetQuaGiaoDich.ThanhCong:
+                Console.WriteLine("Rut tien thanh cong");
+                break;
+            case KetQuaGiaoDich.SoTienKhongHopLe:
+                Console.WriteLine("So tien khong hop le");
+                break;
+            case KetQuaGiaoDich.SoDuKhongDu:
+                Console.WriteLine("So du khong du");
+                break;
+        }
+        gdXuly(stk);
+    }
+
+    //Giao diện nạp tiền khi ko đăng nhập
+    static void gdNapTien()
+    {
+        Console.WriteLine("        ===Nap Tien===      ");
+        Console.Write("Nhap so tai khoan can nap: ");
+        string stk = Console.ReadLine()!;
+        Console.Write("Nhap so tien can nap: ");
+        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
+        {
+            Console.WriteLine("Vui long nhap so tien hop le");
+            return;
+        }
+
+        var kq = qlnh.Naptien(stk, a);
+        switch (kq)
+        {
+            case KetQuaGiaoDich.ThanhCong:
+                Console.WriteLine("Nap tien thanh cong");
+                break;
+            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
+                Console.WriteLine("So tai khoan khong ton tai");
+                break;
+            case KetQuaGiaoDich.SoTienKhongHopLe:
+                Console.WriteLine("So tien khong hop le");
+                break;
+        }
+    }
+
+    //Giao diện nạp tiền chính khi đã đăng nhập
+    static void gdNapTien2(string stk)
+    {
+        Console.WriteLine("        ===Nap Tien===      ");
+        Console.Write("Nhap so tien can nap: ");
+        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
+        {
+            Console.WriteLine("Vui long nhap so tien hop le");
             gdXuly(stk);
+            return;
         }
-        public static void Main(string[] args)
+
+        var kq = qlnh.Naptien(stk, a);
+        switch (kq)
         {
-            bool ok=true;
-            while(ok){
+            case KetQuaGiaoDich.ThanhCong:
+                Console.WriteLine("Nap tien thanh cong");
+                break;
+            case KetQuaGiaoDich.SoTienKhongHopLe:
+                Console.WriteLine("So tien khong hop le");
+                break;
+        }
+        gdXuly(stk);
+    }
+
+    //Giao diện xem số dư
+    static void gdXemsodu(string stk)
+    {
+        decimal sd = qlnh.XemSodu(stk);
+        Console.WriteLine($"So du cua ban la: {sd}");
+        gdXuly(stk);
+    }
+
+    public static void Main(string[] args)
+    {
+        bool ok = true;
+        while (ok)
+        {
             gdMenu();
-                string t=Console.ReadLine()!;
+            string t = Console.ReadLine()!;
             switch (t)
             {
-            case "1":
-                gdTaoTK();
-                break;
-            case "2":
-                gdDangNhap();
-                break;
-            case "3":
-                gdNapTien();
-                break;
-            case "0":
-                ok=false;
-                break;
-            default:
+                case "1":
+                    gdTaoTK();
+                    break;
+                case "2":
+                    gdDangNhap();
+                    break;
+                case "3":
+                    gdNapTien();
+                    break;
+                case "0":
+                    ok = false;
+                    break;
+                default:
                     Console.WriteLine("Lua chon khong hop le!");
                     break;
             }
-            
-            }
         }
     }
+}

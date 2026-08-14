@@ -1,0 +1,2 @@
+[2026-08-13 16:48:04] [INFO] Khoi dong: Khoi dong chuong trinh thanh cong
+[2026-08-13 16:49:03] [WARNING] TaoTaiKhoan: STK doquanghuan1 da ton tai

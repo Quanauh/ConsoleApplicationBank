@@ -4,7 +4,7 @@ class Program
     static BankManager qlnh = new BankManager();
 
     //giao diện ban đầu
-    static void gdMenu()
+    static void ShowMenu()
     {
         Console.WriteLine("        ===NganHangHuanBank===      ");
         Console.WriteLine("1.Tao tai khoan");
@@ -15,7 +15,7 @@ class Program
     }
 
     //Giao diện tạo tài khoản
-    static void gdTaoTK()
+    static void RegisterScreen()
     {
         Console.WriteLine("        ===TaoTK===      ");
         Console.Write("Nhap ten cua ban:");
@@ -33,25 +33,25 @@ class Program
         Console.Write("Nhap mat khau muon dat: ");
         string mk = Console.ReadLine()!;
 
-        var kq = qlnh.TaoTk(ten,sdt,email,ngaysinh,diachi,stk, mk);
+        var kq = qlnh.CreateAccount(ten,sdt,email,ngaysinh,diachi,stk, mk);
         switch (kq)
         {
-            case KetQuaGiaoDich.SdtDaTonTai:
+            case TransactionResult.PhoneAlreadyExists:
                 Console.WriteLine("So dien thoai da ton tai");
                 break;
-            case KetQuaGiaoDich.EmailDaTonTai:
+            case TransactionResult.EmailAlreadyExists:
                 Console.WriteLine("Email thoai da ton tai");
                 break;
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Tao tai khoan thanh cong");
                 break;
-            case KetQuaGiaoDich.SoTaiKhoanDaTonTai:
+            case TransactionResult.AccountAlreadyExists:
                 Console.WriteLine("So tai khoan da ton tai");
                 break;
-            case KetQuaGiaoDich.NgaySinhKhongHopLe:
+            case TransactionResult.InvalidDate:
                 Console.WriteLine("Ngay sinh khong hop le");
                 break;
-            case KetQuaGiaoDich.LoiHeThong:
+            case TransactionResult.SystemError:
                 Console.WriteLine("Loi SQL");
                 break;
             default:
@@ -61,7 +61,7 @@ class Program
     }
 
     //Giao diện đăng nhập
-    static void gdDangNhap()
+    static void LoginScreen()
     {
         Console.WriteLine("        ===Dang Nhap===      ");
         Console.Write("Nhap stk cua ban: ");
@@ -69,17 +69,17 @@ class Program
         Console.Write("Nhap mat khau cua ban: ");
         string mk = Console.ReadLine()!;
 
-        var kq = qlnh.DangNhap(stk, mk);
+        var kq = qlnh.Login(stk, mk);
         switch (kq)
         {
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Ban da dang nhap thanh cong");
                 gdXuly(stk);
                 break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
+            case TransactionResult.AccountNotFound:
                 Console.WriteLine("Khong tim thay tai khoan");
                 break;
-            case KetQuaGiaoDich.SaiMatKhau:
+            case TransactionResult.IncorrectPassword:
                 Console.WriteLine("Ban da nhap sai mat khau");
                 break;
         }
@@ -101,22 +101,23 @@ class Program
         switch (t)
         {
             case "1":
-                gdChuyentien(stk);
+            //Gd chuyentien
+                TransferScreen(stk);
                 break;
             case "2":
-                gdNapTien2(stk);
+                DepositScreen2(stk);
                 break;
             case "3":
-                gdRuttien(stk);
+                WithdrawScreen(stk);
                 break;
             case "4":
-                gdXemsodu(stk);
+                BalanceScreen(stk);
                 break;
             case "5":
-                gdXemThongTin(stk);
+                InforScreen(stk);
                 break;
             case "6":
-                gdXemLichSugd(stk);
+                GetHistoryScreen(stk);
                 break;
             case "0":
                 break;
@@ -126,16 +127,17 @@ class Program
                 break;
         }
     }
-    static void gdXemLichSugd(string stk)
+    // Giao diện xem lịch sử giao dịch
+    static void GetHistoryScreen(string stk)
     {
-        List<LichSuGiaoDich> ds=qlnh.LayLichSu(stk);
+        List<TransactionHistory> ds=qlnh.GetTransactionHistory(stk);
         Console.WriteLine("        ===LichSuGiaoDich===      ");
         if (ds.Count == 0)
     {
     Console.WriteLine("Không có lịch sử giao dịch.");
     }
         else {
-            foreach(LichSuGiaoDich x in ds){
+            foreach(TransactionHistory x in ds){
             Console.WriteLine(x);
         }
         }
@@ -144,9 +146,9 @@ class Program
         gdXuly(stk);
     }
     //Giao diện xem thông tin khách hàng
-    static void gdXemThongTin(string stk)
+    static void InforScreen(string stk)
     {
-        ThongTinTaiKhoan? a=qlnh.laythongtin(stk);
+        AccountInfo? a=qlnh.GetAccountInfor(stk);
         Console.WriteLine("        ===Thong tin tai khoan===      ");
         Console.WriteLine($"Ten chu tai khoan: {a?.HoTen}");
         Console.WriteLine($"SDT chu tai khoan:: {a?.SDT}");
@@ -160,7 +162,7 @@ class Program
     }
 
     //Giao diện chuyển tiền
-    static void gdChuyentien(string stk)
+    static void TransferScreen(string stk)
     {
         Console.WriteLine("        ===Chuyen Tien===      ");
         Console.Write("Nhap so tai khoan can chuyen: ");
@@ -173,23 +175,23 @@ class Program
             return;
         }
 
-        var kq = qlnh.ChuyenTien(stk, stk2, a);
+        var kq = qlnh.TransferMoney(stk, stk2, a);
         switch (kq)
         {
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Chuyen tien thanh cong");
-                Console.WriteLine($"So du cua ban la: {qlnh.XemSodu(stk)}");
+                Console.WriteLine($"So du cua ban la: {qlnh.GetBalance(stk)}");
                 break;
-            case KetQuaGiaoDich.ChuyenChoChinhMinh:
+            case TransactionResult.CannotTransferToSelf:
                 Console.WriteLine("Ban khong the chuyen tien cho chinh minh");
                 break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
+            case TransactionResult.AccountNotFound:
                 Console.WriteLine("So tai khoan khong ton tai");
                 break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
+            case TransactionResult.InvalidAmount:
                 Console.WriteLine("So tien khong hop le");
                 break;
-            case KetQuaGiaoDich.SoDuKhongDu:
+            case TransactionResult.InsufficientBalance:
                 Console.WriteLine("So du cua ban khong du");
                 break;
         }
@@ -197,7 +199,7 @@ class Program
     }
 
     //Giao diện rút tiền
-    static void gdRuttien(string stk)
+    static void WithdrawScreen(string stk)
     {
         Console.WriteLine("        ===Rut Tien===      ");
         Console.Write("Nhap so tien can rut: ");
@@ -208,16 +210,16 @@ class Program
             return;
         }
 
-        var kq = qlnh.RutTien(stk, a);
+        var kq = qlnh.Withdraw(stk, a);
         switch (kq)
         {
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Rut tien thanh cong");
                 break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
+            case TransactionResult.InvalidAmount:
                 Console.WriteLine("So tien khong hop le");
                 break;
-            case KetQuaGiaoDich.SoDuKhongDu:
+            case TransactionResult.InsufficientBalance:
                 Console.WriteLine("So du khong du");
                 break;
         }
@@ -225,7 +227,7 @@ class Program
     }
 
     //Giao diện nạp tiền khi ko đăng nhập
-    static void gdNapTien()
+    static void DepositScreen1()
     {
         Console.WriteLine("        ===Nap Tien===      ");
         Console.Write("Nhap so tai khoan can nap: ");
@@ -237,23 +239,23 @@ class Program
             return;
         }
 
-        var kq = qlnh.Naptien(stk, a);
+        var kq = qlnh.Deposit(stk, a);
         switch (kq)
         {
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Nap tien thanh cong");
                 break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
+            case TransactionResult.AccountNotFound:
                 Console.WriteLine("So tai khoan khong ton tai");
                 break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
+            case TransactionResult.InvalidAmount:
                 Console.WriteLine("So tien khong hop le");
                 break;
         }
     }
 
     //Giao diện nạp tiền chính khi đã đăng nhập
-    static void gdNapTien2(string stk)
+    static void DepositScreen2(string stk)
     {
         Console.WriteLine("        ===Nap Tien===      ");
         Console.Write("Nhap so tien can nap: ");
@@ -264,13 +266,13 @@ class Program
             return;
         }
 
-        var kq = qlnh.Naptien(stk, a);
+        var kq = qlnh.Deposit(stk, a);
         switch (kq)
         {
-            case KetQuaGiaoDich.ThanhCong:
+            case TransactionResult.Success:
                 Console.WriteLine("Nap tien thanh cong");
                 break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
+            case TransactionResult.InvalidAmount:
                 Console.WriteLine("So tien khong hop le");
                 break;
         }
@@ -278,33 +280,35 @@ class Program
     }
 
     //Giao diện xem số dư
-    static void gdXemsodu(string stk)
+    static void BalanceScreen(string stk)
     {
-        decimal sd = qlnh.XemSodu(stk);
+        decimal sd = qlnh.GetBalance(stk);
         Console.WriteLine($"So du cua ban la: {sd}");
         Console.Write("Nhan phim bat ki de thoat");
         Console.ReadKey();
         Console.WriteLine();
         gdXuly(stk);
     }
-
+    //Main
     public static void Main(string[] args)
     {
+        Logger.KhoiTao();
+        Logger.Ghi("INFO","Khoi dong","Khoi dong chuong trinh thanh cong");
         bool ok = true;
         while (ok)
         {
-            gdMenu();
+            ShowMenu();
             string t = Console.ReadLine()!;
             switch (t)
             {
                 case "1":
-                    gdTaoTK();
+                    RegisterScreen();
                     break;
                 case "2":
-                    gdDangNhap();
+                    LoginScreen();
                     break;
                 case "3":
-                    gdNapTien();
+                    DepositScreen1();
                     break;
                 case "0":
                     ok = false;

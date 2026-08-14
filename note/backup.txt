@@ -1,389 +1,192 @@
 using System;
 using System.Collections.Generic;
-
-//Kết quả giao dịch - dùng chung cho mọi thao tác backend trả về
-enum KetQuaGiaoDich
+using Oracle.ManagedDataAccess.Client;
+using Dapper;
+class AccountDAO
 {
-    ThanhCong,
-    SoTaiKhoanDaTonTai,
-    SoTaiKhoanKhongTonTai,
-    SaiMatKhau,
-    SoTienKhongHopLe,
-    SoDuKhongDu,
-    ChuyenChoChinhMinh
-}
+    //kiem tra ton tai
+     public bool Exists(string stk)
+    {
+        using OracleConnection conn = Database.GetConnection();
 
-//Tài khoản khách hàng
-class BankAccount
+        string sql = "SELECT COUNT(*) FROM TAI_KHOAN WHERE SoTK=:stk";
+
+        OracleCommand cmd = new OracleCommand(sql, conn);
+        cmd.Parameters.Add(":stk", stk);
+
+        int dem = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return dem > 0;
+    }
+    public bool checkPassWord(string stk, string mk)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        string sql="SELECT COUNT(*) FROM tai_khoan WHERE sotk=:stk AND matkhau=:mk";
+        using OracleCommand cmd =new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":stk",stk);
+        cmd.Parameters.Add(":mk",mk);
+        int dem=Convert.ToInt32(cmd.ExecuteScalar());
+        return dem>0;
+    }
+    // Tạo tài khoản
+    public void CreateAccount(string ten, string sdt,string email,string ngaysinh,string diachi,string stk, string mk)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        using OracleTransaction trann=conn.BeginTransaction();
+        try{
+        string sql="INSERT INTO khach_hang(HOTEN,SDT,EMAIL,NGAYSINH,DIACHI) VALUES (:ten,:sdt,:email,TO_DATE(:ngaysinh,'dd/MM/YYYY'),:diachi)";
+        using OracleCommand cmdkh=new OracleCommand(sql, conn);
+        cmdkh.Transaction = trann;
+            cmdkh.Parameters.Add(":ten",ten);
+            cmdkh.Parameters.Add(":sdt",sdt);
+            cmdkh.Parameters.Add(":email",email);
+            cmdkh.Parameters.Add(":ngaysinh",ngaysinh);
+            cmdkh.Parameters.Add(":diachi",diachi);
+            cmdkh.ExecuteNonQuery();
+        string sqll="INSERT INTO tai_khoan (SOTK,MAKH,MATKHAU) VALUES (:stk,seq_khach_hang.CURRVAL,:mk)";
+        using OracleCommand cmdtk=new OracleCommand(sqll,conn);
+        cmdtk.Transaction=trann;
+        cmdtk.Parameters.Add(":stk",stk);
+        cmdtk.Parameters.Add(":mk",mk);
+        cmdtk.ExecuteNonQuery();
+        trann.Commit();
+        }
+        catch
+        {
+            trann.Rollback();
+            throw ;
+        }
+    }
+    //chuyen tien
+        public void TransferMoney(string stk1,string stk2,decimal a)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        using OracleTransaction trann=conn.BeginTransaction();
+        try
+        {
+            string sql="UPDATE tai_khoan SET SODU=SODU+:a WHERE sotk=:stk";
+        using OracleCommand cmdnap=new OracleCommand(sql,conn);
+            cmdnap.Transaction=trann;
+            cmdnap.Parameters.Add(":a",a);
+            cmdnap.Parameters.Add(":stk",stk2);
+            cmdnap.ExecuteNonQuery();
+             string sqll="UPDATE tai_khoan SET SODU=SODU-:a WHERE sotk=:stk";
+        using OracleCommand cmdrut=new OracleCommand(sqll,conn);
+            cmdrut.Transaction=trann;
+            cmdrut.Parameters.Add(":a",a);
+            cmdrut.Parameters.Add(":stk",stk1);
+            cmdrut.ExecuteNonQuery();
+            SaveTransactionHistory(stk1,stk2,"CHUYEN",a);
+            SaveTransactionHistory(stk2,stk1,"NHAN",a);
+            trann.Commit();
+        }
+        catch
+        {
+            trann.Rollback();
+            throw;
+        }
+    }
+    //Nạp tiền
+    public void Deposit(string stk, decimal a)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        string sql="UPDATE tai_khoan SET SODU=SODU+:a WHERE sotk=:stk";
+        using OracleCommand cmd=new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":a",a);
+        cmd.Parameters.Add(":stk",stk);
+        cmd.ExecuteNonQuery();
+    }
+    public decimal GetBalance(string stk)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        string sql="SELECT sodu FROM tai_khoan WHERE SOTK=:stk";
+        using OracleCommand cmd=new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":stk",stk);
+        decimal sodu=Convert.ToDecimal(cmd.ExecuteScalar());
+        return sodu;
+    }
+    public void Withdraw(string stk,decimal a)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        string sql="UPDATE tai_khoan SET SODU=SODU-:a WHERE sotk=:stk";
+        using OracleCommand cmd=new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":a",a);
+        cmd.Parameters.Add(":stk",stk);
+        cmd.ExecuteNonQuery();
+    }
+    public AccountInfo? GetAccountInfor(string stk)
 {
-    private string tkKhachHang;
-    private string matkhau;
-    private decimal Sodu;
-    public BankAccount(string a, string mk)
+    using OracleConnection conn = Database.GetConnection();
+
+    string sql = @"SELECT tk.SOTK,kh.HOTEN,kh.SDT,kh.EMAIL,kh.NGAYSINH,kh.DIACHI,tk.SODU
+                   FROM TAI_KHOAN tk
+                   JOIN KHACH_HANG kh
+                        ON tk.MAKH = kh.MAKH
+                   WHERE tk.SOTK = :stk";
+
+    using OracleCommand cmd = new OracleCommand(sql, conn);
+    cmd.Parameters.Add(":stk", stk);
+
+    using OracleDataReader reader = cmd.ExecuteReader();
+
+    if (!reader.Read())
+        return null;
+
+    return new AccountInfo(
+        reader["SOTK"].ToString()??"",
+        reader.IsDBNull(reader.GetOrdinal("HoTen")) ? "" : reader.GetString(reader.GetOrdinal("HoTen")),
+        reader.IsDBNull(reader.GetOrdinal("SDT")) ? "" : reader.GetString(reader.GetOrdinal("SDT")),
+        reader.IsDBNull(reader.GetOrdinal("Email")) ? "" : reader.GetString(reader.GetOrdinal("Email")),
+        reader.IsDBNull(reader.GetOrdinal("NgaySinh")) ? (DateTime?)null : reader.GetDateTime(reader.GetOrdinal("NgaySinh")),
+        reader.IsDBNull(reader.GetOrdinal("DiaChi")) ? "" : reader.GetString(reader.GetOrdinal("DiaChi")),
+        Convert.ToDecimal(reader["SODU"])
+    );
+
+}   
+    public void SaveTransactionHistory(string stk1,string? stk2,string loai,decimal a)
     {
-        this.tkKhachHang = a;
-        this.Sodu = 0;
-        this.matkhau = mk;
+        using OracleConnection conn=Database.GetConnection();
+        string sql="";
+        sql=@"INSERT INTO GIAO_DICH(SOTK,SOTK_DOI,LOAIGD,SOTIEN,SODUSAUGD) 
+                    SELECT :stk1,
+                    :stk2,
+                    :loai,
+                    :tien,
+                    SODU
+                    FROM TAI_KHOAN
+                    WHERE SOTK=:stk1"
+                    ;
+        
+        using OracleCommand cmd=new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":stk1",stk1);
+        cmd.Parameters.Add("stk2",stk2==null? DBNull.Value:stk2);
+        cmd.Parameters.Add("loai",loai);
+        cmd.Parameters.Add(":tien",a);
+        cmd.ExecuteNonQuery();
     }
-    public string getTk()
+    public List<TransactionHistory> GetTransactionHistory(string stk)
     {
-        return tkKhachHang;
-    }
-    public decimal getSd()
-    {
-        return Sodu;
-    }
-    public void Naptien(decimal a)
-    {
-        Sodu += a;
-    }
-    public void rt(decimal a)
-    {
-        Sodu -= a;
-    }
-    public bool checkMk(string mk)
-    {
-        return matkhau == mk;
-    }
-}
-
-//Quản lý ngân hàng - toàn bộ logic nghiệp vụ và validate nằm ở đây,
-//không Console.WriteLine, chỉ trả về KetQuaGiaoDich cho UI tự quyết định hiển thị gì
-class BankManager
-{
-    private Dictionary<string, BankAccount> ds = new Dictionary<string, BankAccount>();
-
-    public bool Timstk(string stk)
-    {
-        return ds.ContainsKey(stk);
-    }
-
-    //Tạo tài khoản
-    public KetQuaGiaoDich TaoTk(string stk, string mk)
-    {
-        if (Timstk(stk))
-            return KetQuaGiaoDich.SoTaiKhoanDaTonTai;
-
-        ds[stk] = new BankAccount(stk, mk);
-        return KetQuaGiaoDich.ThanhCong;
-    }
-
-    //Xử lý đăng nhập (gộp check tồn tại + check mật khẩu)
-    public KetQuaGiaoDich DangNhap(string stk, string mk)
-    {
-        if (!Timstk(stk))
-            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
-
-        if (!ds[stk].checkMk(mk))
-            return KetQuaGiaoDich.SaiMatKhau;
-
-        return KetQuaGiaoDich.ThanhCong;
-    }
-
-    //Xử lý nạp tiền (check luôn cả sự tồn tại của tài khoản để dùng được cả khi chưa đăng nhập)
-    public KetQuaGiaoDich Naptien(string stk, decimal a)
-    {
-        if (!Timstk(stk))
-            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
-
-        if (a <= 0)
-            return KetQuaGiaoDich.SoTienKhongHopLe;
-
-        ds[stk].Naptien(a);
-        return KetQuaGiaoDich.ThanhCong;
-    }
-
-    //Xử lý rút tiền
-    public KetQuaGiaoDich RutTien(string stk, decimal a)
-    {
-        if (!Timstk(stk))
-            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
-
-        if (a <= 0)
-            return KetQuaGiaoDich.SoTienKhongHopLe;
-
-        if (a > ds[stk].getSd())
-            return KetQuaGiaoDich.SoDuKhongDu;
-
-        ds[stk].rt(a);
-        return KetQuaGiaoDich.ThanhCong;
-    }
-
-    //Xử lý chuyển tiền
-    public KetQuaGiaoDich ChuyenTien(string stk1, string stk2, decimal a)
-    {
-        if (stk1 == stk2)
-            return KetQuaGiaoDich.ChuyenChoChinhMinh;
-
-        if (!Timstk(stk2))
-            return KetQuaGiaoDich.SoTaiKhoanKhongTonTai;
-
-        if (a <= 0)
-            return KetQuaGiaoDich.SoTienKhongHopLe;
-
-        if (a > ds[stk1].getSd())
-            return KetQuaGiaoDich.SoDuKhongDu;
-
-        ds[stk1].rt(a);
-        ds[stk2].Naptien(a);
-        return KetQuaGiaoDich.ThanhCong;
-    }
-
-    //Xem số dư
-    public decimal XemSodu(string stk)
-    {
-        return ds[stk].getSd();
-    }
-}
-
-//UI - chỉ nhập liệu, gọi backend, và hiển thị kết quả dựa trên KetQuaGiaoDich trả về.
-//Không còn logic nghiệp vụ (không check tồn tại tài khoản, không so sánh số dư, ...) ở đây nữa.
-class Program
-{
-    static BankManager qlnh = new BankManager();
-
-    //giao diện ban đầu
-    static void gdMenu()
-    {
-        Console.WriteLine("        ===NganHangHuanBank===      ");
-        Console.WriteLine("1.Tao tai khoan");
-        Console.WriteLine("2.Dang nhap tai khoan");
-        Console.WriteLine("3.Nap tien");
-        Console.WriteLine("0.Thoat");
-        Console.Write("Chon chuc nang: ");
-    }
-
-    //Giao diện tạo tài khoản
-    static void gdTaoTK()
-    {
-        Console.WriteLine("        ===TaoTK===      ");
-        Console.Write("Nhap so tai khoan muon tao: ");
-        string s = Console.ReadLine()!;
-        Console.Write("Nhap mat khau muon dat: ");
-        string mk = Console.ReadLine()!;
-
-        var kq = qlnh.TaoTk(s, mk);
-        switch (kq)
+        using OracleConnection conn=Database.GetConnection();
+        string sql=@"SELECT tk.SOTK,gd.SOTK_DOI,gd.LOAIGD,gd.SOTIEN,gd.SODUSAUGD,gd.THOIGIANGD
+                        FROM GIAO_DICH gd
+                        JOIN TAI_KHOAN tk
+                        ON gd.SOTK=tk.SOTK
+                        WHERE gd.SOTK=:stk";
+        using OracleCommand cmd=new OracleCommand(sql,conn);
+        cmd.Parameters.Add(":stk",stk);
+        using OracleDataReader reader=cmd.ExecuteReader();
+        List<TransactionHistory> ds=new List<TransactionHistory>();
+        while (reader.Read())
         {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Tao tai khoan thanh cong");
-                break;
-            case KetQuaGiaoDich.SoTaiKhoanDaTonTai:
-                Console.WriteLine("So tai khoan da ton tai");
-                break;
+            ds.Add(new TransactionHistory(
+                reader["SOTK"].ToString()??"",
+                reader.IsDBNull(reader.GetOrdinal("SOTK_DOI")) ? "" : reader.GetString(reader.GetOrdinal("SOTK_DOI")),
+                reader["LOAIGD"].ToString()??"",
+                Convert.ToDecimal(reader["SOTIEN"]),
+                Convert.ToDecimal(reader["SODUSAUGD"]),
+                Convert.ToDateTime(reader["THOIGIANGD"])
+            ));
         }
-    }
-
-    //Giao diện đăng nhập
-    static void gdDangNhap()
-    {
-        Console.WriteLine("        ===Dang Nhap===      ");
-        Console.Write("Nhap stk cua ban: ");
-        string stk = Console.ReadLine()!;
-        Console.Write("Nhap mat khau cua ban: ");
-        string mk = Console.ReadLine()!;
-
-        var kq = qlnh.DangNhap(stk, mk);
-        switch (kq)
-        {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Ban da dang nhap thanh cong");
-                gdXuly(stk);
-                break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
-                Console.WriteLine("Khong tim thay tai khoan");
-                break;
-            case KetQuaGiaoDich.SaiMatKhau:
-                Console.WriteLine("Ban da nhap sai mat khau");
-                break;
-        }
-    }
-
-    //Giao diện xử lý sau khi đăng nhập
-    static void gdXuly(string stk)
-    {
-        Console.WriteLine($"        ===Xin Chao {stk}===      ");
-        Console.WriteLine("1. Chuyen tien");
-        Console.WriteLine("2. Nap Tien");
-        Console.WriteLine("3. Rut tien");
-        Console.WriteLine("4. Xem so du");
-        Console.WriteLine("0. Quay lai");
-        Console.Write("Chon chuc nang: ");
-        string t = Console.ReadLine()!;
-        switch (t)
-        {
-            case "1":
-                gdChuyentien(stk);
-                break;
-            case "2":
-                gdNapTien2(stk);
-                break;
-            case "3":
-                gdRuttien(stk);
-                break;
-            case "4":
-                gdXemsodu(stk);
-                break;
-            case "0":
-                break;
-            default:
-                Console.WriteLine("Lua chon khong hop le!");
-                gdXuly(stk);
-                break;
-        }
-    }
-
-    //Giao diện chuyển tiền
-    static void gdChuyentien(string stk)
-    {
-        Console.WriteLine("        ===Chuyen Tien===      ");
-        Console.Write("Nhap so tai khoan can chuyen: ");
-        string stk2 = Console.ReadLine()!;
-        Console.Write("Nhap so tien can chuyen: ");
-        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
-        {
-            Console.WriteLine("Vui long nhap so tien hop le");
-            gdXuly(stk);
-            return;
-        }
-
-        var kq = qlnh.ChuyenTien(stk, stk2, a);
-        switch (kq)
-        {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Chuyen tien thanh cong");
-                Console.WriteLine($"So du cua ban la: {qlnh.XemSodu(stk)}");
-                break;
-            case KetQuaGiaoDich.ChuyenChoChinhMinh:
-                Console.WriteLine("Ban khong the chuyen tien cho chinh minh");
-                break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
-                Console.WriteLine("So tai khoan khong ton tai");
-                break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
-                Console.WriteLine("So tien khong hop le");
-                break;
-            case KetQuaGiaoDich.SoDuKhongDu:
-                Console.WriteLine("So du cua ban khong du");
-                break;
-        }
-        gdXuly(stk);
-    }
-
-    //Giao diện rút tiền
-    static void gdRuttien(string stk)
-    {
-        Console.WriteLine("        ===Rut Tien===      ");
-        Console.Write("Nhap so tien can rut: ");
-        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
-        {
-            Console.WriteLine("Vui long nhap so tien hop le");
-            gdXuly(stk);
-            return;
-        }
-
-        var kq = qlnh.RutTien(stk, a);
-        switch (kq)
-        {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Rut tien thanh cong");
-                break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
-                Console.WriteLine("So tien khong hop le");
-                break;
-            case KetQuaGiaoDich.SoDuKhongDu:
-                Console.WriteLine("So du khong du");
-                break;
-        }
-        gdXuly(stk);
-    }
-
-    //Giao diện nạp tiền khi ko đăng nhập
-    static void gdNapTien()
-    {
-        Console.WriteLine("        ===Nap Tien===      ");
-        Console.Write("Nhap so tai khoan can nap: ");
-        string stk = Console.ReadLine()!;
-        Console.Write("Nhap so tien can nap: ");
-        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
-        {
-            Console.WriteLine("Vui long nhap so tien hop le");
-            return;
-        }
-
-        var kq = qlnh.Naptien(stk, a);
-        switch (kq)
-        {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Nap tien thanh cong");
-                break;
-            case KetQuaGiaoDich.SoTaiKhoanKhongTonTai:
-                Console.WriteLine("So tai khoan khong ton tai");
-                break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
-                Console.WriteLine("So tien khong hop le");
-                break;
-        }
-    }
-
-    //Giao diện nạp tiền chính khi đã đăng nhập
-    static void gdNapTien2(string stk)
-    {
-        Console.WriteLine("        ===Nap Tien===      ");
-        Console.Write("Nhap so tien can nap: ");
-        if (!decimal.TryParse(Console.ReadLine(), out decimal a))
-        {
-            Console.WriteLine("Vui long nhap so tien hop le");
-            gdXuly(stk);
-            return;
-        }
-
-        var kq = qlnh.Naptien(stk, a);
-        switch (kq)
-        {
-            case KetQuaGiaoDich.ThanhCong:
-                Console.WriteLine("Nap tien thanh cong");
-                break;
-            case KetQuaGiaoDich.SoTienKhongHopLe:
-                Console.WriteLine("So tien khong hop le");
-                break;
-        }
-        gdXuly(stk);
-    }
-
-    //Giao diện xem số dư
-    static void gdXemsodu(string stk)
-    {
-        decimal sd = qlnh.XemSodu(stk);
-        Console.WriteLine($"So du cua ban la: {sd}");
-        gdXuly(stk);
-    }
-
-    public static void Main(string[] args)
-    {
-        bool ok = true;
-        while (ok)
-        {
-            gdMenu();
-            string t = Console.ReadLine()!;
-            switch (t)
-            {
-                case "1":
-                    gdTaoTK();
-                    break;
-                case "2":
-                    gdDangNhap();
-                    break;
-                case "3":
-                    gdNapTien();
-                    break;
-                case "0":
-                    ok = false;
-                    break;
-                default:
-                    Console.WriteLine("Lua chon khong hop le!");
-                    break;
-            }
-        }
+        return ds;
     }
 }

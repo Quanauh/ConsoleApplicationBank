@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConsoleApplicationBank")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+060e020c39dc9615c26c09951045541cf9cc2374")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cdd7462a7d10a8007efc92fad61c0c966408c0f0")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConsoleApplicationBank")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConsoleApplicationBank")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
