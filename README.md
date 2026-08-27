@@ -436,3 +436,4 @@ app.MapPost("/login", (LoginRequest req, BankManager qlnh) =>
 Có thể đọc đoạn trên thành:
 
 > **Khi client gửi POST `/login`, nhận `LoginRequest` và `BankManager`, sau đó chạy hàm xử lý đăng nhập và trả kết quả về client.**
+![alt text](image.png)
