@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Oracle.ManagedDataAccess.Client;
-
+using Serilog;
+using Microsoft.Extensions.Logging;
 enum TransactionResult
 {
     Success,
@@ -14,13 +15,20 @@ enum TransactionResult
     PhoneAlreadyExists,
     EmailAlreadyExists,
     SystemError,
-    InvalidDate
+    InvalidDate,
+    IsNull
 }
 
 class BankManager
 {
-    AccountDAO acd = new AccountDAO();
+    private readonly IAccountDAO acd;
+    private readonly ILogger<BankManager> logger;
 
+    public BankManager(IAccountDAO acd, ILogger<BankManager> logger)
+    {
+        this.acd = acd;
+        this.logger = logger;
+    }
     public bool AccountExists(string stk)
     {
         return acd.Exists(stk);
@@ -28,44 +36,46 @@ class BankManager
 
     public TransactionResult CreateAccount(string ten, string sdt, string email, string ngaysinh, string diachi, string stk, string mk)
     {
+        if (string.IsNullOrWhiteSpace(ten) || string.IsNullOrWhiteSpace(stk) || string.IsNullOrWhiteSpace(mk))
+        {
+            logger.LogWarning("Dang ky - Thong tin khong duoc de trong");
+            return TransactionResult.IsNull;
+        }
         try
         {
             if (acd.Exists(stk)){ 
-                Logger.Ghi("WARNING", "TaoTaiKhoan", $"STK {stk} da ton tai");
+                logger.LogWarning("Dang Ki - Sotk {stk} da ton tai",stk);
                 return TransactionResult.AccountAlreadyExists;
             }
             else
             {
                 acd.CreateAccount(ten, sdt, email, ngaysinh, diachi, stk, mk);
-                Logger.Ghi("INFO","TaoTaiKhoan","Tao tai khoan thanh cong");
+                logger.LogInformation("Tao Tai Khoan - Tao tai khoan {stk} thanh cong",stk);
                 return TransactionResult.Success;
             }
         }
         catch (OracleException ex)
         {
-            Console.WriteLine($"Error Number: {ex.Number}");
-            Console.WriteLine($"Error Message: {ex.Message}");
             if (ex.Number > 0)
             {
                 if (ex.Message.Contains("UQ_KHACHHANG_SDT")){
-                    Logger.Ghi("WARNING","TaoTaiKhoan",$"So dien thoai {sdt} da ton tai");
                     return TransactionResult.PhoneAlreadyExists;
                 }
                 if (ex.Message.Contains("UQ_KHACHHANG_EMAIL")){
-                    Logger.Ghi("WARNING","Tao tai khoan",$"Email {email} da ton tai");
+                    logger.LogWarning("Tao tai khoan - Email {email} da ton tai",email);
                     return TransactionResult.EmailAlreadyExists;
                 }
 
                 if (ex.Message.Contains("PK_TAI_KHOAN")){
-                    Logger.Ghi("WARNING","Tao tai khoan",$"So tai khoan {stk} da ton tai");
+                    logger.LogWarning("Tao tai khoan - So tai khoan {stk} da ton tai",stk);
                     return TransactionResult.AccountAlreadyExists;
                 }
                 if (ex.Message.Contains("month")){
-                     Logger.Ghi("WARNING","Tao tai khoan","Ngay sinh khong hop le");
+                     logger.LogWarning("Tao tai khoan - Ngay sinh {ngaysinh} khong hop le",ngaysinh);
                     return TransactionResult.InvalidDate;
                 }
             }
-            Logger.Ghi("ERROR", "TaoTaiKhoan", $"Loi he thong khi tao STK {stk}", ex.ToString());
+           logger.LogError(ex,"Tao tai khoan - Co loi xay ra");
             return TransactionResult.SystemError;
         }
     }
@@ -74,20 +84,20 @@ class BankManager
     {
         try{
         if (!AccountExists(stk)){
-            Logger.Ghi("WARNING","Dang nhap",$"So tai khoan {stk} khong ton tai");
+            logger.LogWarning("So tai khoan {Stk} khong ton tai", stk);
             return TransactionResult.AccountNotFound;
         }
 
         if (!acd.checkPassWord(stk, mk)){
-            Logger.Ghi("WARNING","Dang Nhap",$"Mat khau khong khop voi so tai khoan {stk}");
+            logger.LogWarning("Dang Nhap - So tai khoan {stk} nhap khong dung mat khau",stk);
             return TransactionResult.IncorrectPassword;
         }
-        Logger.Ghi("INFO","Dang Nhap",$"stk {stk} Dang nhap thanh cong");
+        logger.LogInformation("Dang Nhap - stk {stk} Dang nhap thanh cong",stk);
         return TransactionResult.Success;
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "Dang Nhap", $"Loi he thong khi STK {stk} dang nhap", ex.ToString());
+            logger.LogError(ex,"Dang Nhap - Loi he thong khi STK {stk} dang nhap",stk);
             return TransactionResult.SystemError;
         }
     }
@@ -96,20 +106,20 @@ class BankManager
     {
         try{
         if (!AccountExists(stk)){
-            Logger.Ghi("WARNING","Nap tien",$"So tai khoan {stk} khong ton tai, nap tien that bai ");
+            logger.LogWarning("Nap tien - So tai khoan {stk} khong ton tai, nap tien that bai ",stk);
             return TransactionResult.AccountNotFound;
         }
         if (a <= 0){
-            Logger.Ghi("WARNING","Nap tien",$"So tai khoan {stk} nap tien that bai, so tien {a} khong hop le");
+            logger.LogWarning("Nap tien - So tai khoan {stk} nap tien that bai, so tien {a} khong hop le",stk,a);
             return TransactionResult.InvalidAmount;
         }
         acd.Deposit(stk, a);
-        Logger.Ghi("INFO","Nap tien",$"So tai khoan {stk} nap tien thanh cong,so tien {a}");
+        logger.LogInformation("Nap Tien - So tai khoan {stk} nap tien thanh cong, so tien {a}",stk,a);
         return TransactionResult.Success;
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "Nap tien", $"Loi he thong khi STK {stk} nap tien", ex.ToString());
+           logger.LogError(ex,"Nap tien - Loi he thong khi STK {stk} nap tien",stk);
             return TransactionResult.SystemError;
         }
     }
@@ -118,26 +128,26 @@ class BankManager
     {
         try{
         if (!AccountExists(stk)){
-            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} khong ton tai,rut tien that bai");
+            logger.LogWarning("Rut tien - So tai khoan {stk} khong ton tai,rut tien that bai",stk);
             return TransactionResult.AccountNotFound;
         }
         if (a <= 0)
             {
-            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien that bai, so tien {a} khong hop le");
+            logger.LogWarning("Rut tien - So tai khoan {stk} rut tien that bai, so tien {a} khong hop le",stk,a);
             return TransactionResult.InvalidAmount;
             }
         if (a > acd.GetBalance(stk))
             {
-            Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien that bai, so du khong du {a}");
+            logger.LogWarning("Rut tien - So tai khoan {stk} rut tien that bai, so du khong du {a}",stk,a);
             return TransactionResult.InsufficientBalance;
             }
-        acd.Withdraw(stk, a);
-        Logger.Ghi("WARNING","Rut tien",$"So tai khoan {stk} rut tien thanh cong");
+        acd.Withdraw1(stk, a);
+        logger.LogWarning("Rut tien - So tai khoan {stk} rut tien thanh cong",stk);
         return TransactionResult.Success;
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "Rut tien", $"Loi he thong khi STK {stk} rut tien", ex.ToString());
+            logger.LogError(ex,"Rut tien - Loi he thong khi STK {stk} rut tien", stk);
             return TransactionResult.SystemError;
         }
     }
@@ -147,30 +157,30 @@ class BankManager
         try{
         if (stk1 == stk2)
             {
-            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} khong the chuyen cho chinh minh,chuyen tien that bai");
+            logger.LogWarning("Chuyen tien - So tai khoan {stk1} khong the chuyen cho chinh minh,chuyen tien that bai",stk1);
             return TransactionResult.CannotTransferToSelf;
             }
         if (!AccountExists(stk2))
             {
-            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk2} khong ton tai,chuyen tien that bai");
+            logger.LogWarning("Chuyen tien - So tai khoan {stk2} khong ton tai,chuyen tien that bai",stk2);
             return TransactionResult.AccountNotFound;
             }
         if (a <= 0)
             {
-            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} chuyen tien that bai,so tien khong hop le :{a}");
+            logger.LogWarning("Chuyen tien - So tai khoan {stk1} chuyen tien that bai,so tien khong hop le :{a}",stk1,a);
             return TransactionResult.InvalidAmount;
             }
         if (a > acd.GetBalance(stk1)){
-            Logger.Ghi("WARNING","Chuyen tien",$"So tai khoan {stk1} khong du so du {a},chuyen tien that bai");
+            logger.LogWarning("Chuyen tien - So tai khoan {stk1} khong du so du {a},chuyen tien that bai",stk1,a);
             return TransactionResult.InsufficientBalance;
         }
         acd.TransferMoney(stk1, stk2, a);
-        Logger.Ghi("INFO","Chuyen tien",$"So tai khoan {stk1} chuyen tien thanh cong cho {stk2},so tien:{a}");
+        logger.LogInformation("Chuyen tien - So tai khoan {stk1} chuyen tien thanh cong cho so tai khoan {stk2}, So tien {a}",stk1,stk2,a);
         return TransactionResult.Success;
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "DangNhap", $"Loi he thong khi STK {stk1} chuyen tien cho {stk2}", ex.ToString());
+            logger.LogError(ex,"Chuyen Tien - Loi he thong khi STK {stk1} chuyen tien cho {stk2}", stk1,stk2);
             return TransactionResult.SystemError;
         }
     }
@@ -178,12 +188,12 @@ class BankManager
     public decimal GetBalance(string stk)
     {
         try{
-        Logger.Ghi("INFO", "Xem so du", $"Xem so du {stk} thanh cong");
+        logger.LogInformation("Xem so du - Xem so du {stk} thanh cong",stk);
         return acd.GetBalance(stk);
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "DangNhap", $"Loi he thong khi lay so du {stk}", ex.ToString());
+            logger.LogError(ex,"Xem So du - Loi he thong khi lay so du {stk}",stk);
             return -1;
         }
     }
@@ -191,12 +201,12 @@ class BankManager
     public AccountInfo? GetAccountInfor(string stk)
     {
         try{
-        Logger.Ghi("INFO", "Xem thong tin", $"Xem thong tin {stk} thanh cong");
+        logger.LogInformation("Xem thong tin - Xem thong tin {stk} thanh cong",stk);
         return acd.GetAccountInfor(stk);
         }
         catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "Lay thong tin", $"Loi he thong khi lay thong tin {stk}", ex.ToString());
+            logger.LogError(ex,"Lay thong tin - Loi he thong khi lay thong tin {stk}",stk);
             return null;
         }
     }
@@ -204,7 +214,7 @@ class BankManager
     public List<TransactionHistory> GetTransactionHistory(string stk)
     {
         try{
-        Logger.Ghi("INFO", "Xem lich su", $"Xem lich su giao dich {stk} thanh cong");
+        logger.LogInformation("Xem lich su - Xem lich su giao dich {stk} thanh cong",stk);
         List<TransactionHistory> ds = acd.GetTransactionHistory(stk);
         foreach (TransactionHistory gd in ds)
         {
@@ -220,9 +230,8 @@ class BankManager
     }
     catch(Exception ex)
         {
-            Logger.Ghi("ERROR", "Lay lich su giao dich", $"Loi he thong khi lay lich su giao dich {stk}", ex.ToString());
+            logger.LogError(ex,"Lay lich su giao dich - Loi he thong khi lay lich su giao dich {stk}",stk);
             return new List<TransactionHistory>();
         }
     }
-
 }

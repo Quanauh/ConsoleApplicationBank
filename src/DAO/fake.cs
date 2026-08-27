@@ -1,29 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
 using Dapper;
 using Oracle.ManagedDataAccess.Client;
+using System.Data;
+class FakeAccountDAO: IAccountDAO
 
-class AccountDAO
 {
-    //kiem tra ton tai
-    public bool Exists(string stk)
-    {
-        using OracleConnection conn = Database.GetConnection();
-        int dem = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM TAI_KHOAN WHERE SoTK=:stk", new { stk });
-        return dem > 0;
-    }
-
-    public bool checkPassWord(string stk, string mk)
-    {
-        using OracleConnection conn = Database.GetConnection();
-        int dem = conn.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM tai_khoan WHERE sotk=:stk AND matkhau=:mk", new { stk, mk });
-        return dem > 0;
-    }
-
-    //Lấy giá trị tiếp theo của 1 sequence - dùng code thay cho trigger
+    public bool Exists(string stk) => stk == "TEST123";
+    public bool checkPassWord(string stk, string mk) => mk == "1234";
     private int GetNextId(OracleConnection conn, OracleTransaction tran, string tenSequence)
     {
         return conn.ExecuteScalar<int>($"SELECT {tenSequence}.NEXTVAL FROM dual", transaction: tran);
@@ -61,7 +43,7 @@ class AccountDAO
     {
         int maSoDu = GetNextId(conn, tran, "seq_so_du_sau_gd");
         conn.Execute(
-            "INSERT INTO SO_DU_SAU_GD (MASODU,MAGD,SOTK,SODUSAUGD) VALUES (:maSoDu,:maGd,:stk,:soDu)",
+            "INSERT INTO LICH_SU_SO_DU (MASODU,MAGD,SOTK,SODUSAUGD) VALUES (:maSoDu,:maGd,:stk,:soDu)",
             new { maSoDu, maGd, stk, soDu = soDuMoi }, tran);
     }
 
@@ -108,6 +90,17 @@ class AccountDAO
             throw;
         }
     }
+    // chuyen tien bang procedure
+        public void TransferMoney1(string stk1, string stk2, decimal a)
+    {
+        using OracleConnection conn = Database.GetConnection();
+        var p = new DynamicParameters();
+        p.Add(":p_stk1", stk1);
+        p.Add(":p_stk2", stk2);
+        p.Add(":p_sotien", a);
+ 
+        conn.Execute("sp_chuyen_tien", p, commandType: CommandType.StoredProcedure);
+    }
 
     //Nạp tiền - 1 dong GIAO_DICH + 1 dong SO_DU_SAU_GD, cung 1 transaction
     public void Deposit(string stk, decimal a)
@@ -138,7 +131,15 @@ class AccountDAO
         using OracleConnection conn = Database.GetConnection();
         return conn.ExecuteScalar<decimal>("SELECT sodu FROM tai_khoan WHERE SOTK=:stk", new { stk });
     }
+    public void Withdraw1(string stk,decimal a)
+    {
+        using OracleConnection conn=Database.GetConnection();
+        var p=new DynamicParameters();
+        p.Add(":p_stk",stk);
+        p.Add(":p_sotien",a);
+        conn.Execute("sp_rut_tien",p,commandType:CommandType.StoredProcedure);
 
+    }
     //Rut tien - 1 dong GIAO_DICH + 1 dong SO_DU_SAU_GD, cung 1 transaction
     public void Withdraw(string stk, decimal a)
     {
@@ -175,18 +176,15 @@ class AccountDAO
         return conn.QueryFirstOrDefault<AccountInfo>(sql, new { stk });
     }
 
-    //Lấy lịch sử giao dịch của 1 tài khoản, kèm đúng số dư của TÀI KHOẢN ĐÓ sau mỗi giao dịch.
-    //Dùng 3 tên tham số khác nhau (stk1/stk2/stk3) dù cùng 1 giá trị stk, để né việc Dapper
-    //không tự set BindByName=true cho Oracle (mặc định ODP.NET bind theo VỊ TRÍ, không theo TÊN,
-    //nên 1 tham số dùng lại nhiều lần trong SQL sẽ báo lỗi thiếu biến nếu không xử lý).
+    
     public List<TransactionHistory> GetTransactionHistory(string stk)
     {
         using OracleConnection conn = Database.GetConnection();
-        string sql = @"SELECT gd.SOTK, gd.SOTK_DOI, gd.LOAIGD, gd.SOTIEN, sd.SODUSAUGD, gd.THOIGIANGD
+        string sql = @"SELECT gd.SOTK, gd.SOTK_DOI, gd.LOAIGD, gd.SOTIEN, ls.SODUSAUGD, gd.THOIGIANGD
                         FROM GIAO_DICH gd
-                        JOIN SO_DU_SAU_GD sd ON sd.MAGD = gd.MAGD AND sd.SOTK = :stk1
+                        JOIN LICH_SU_SO_DU ls ON ls.MAGD = gd.MAGD AND ls.SOTK = :stk1
                         WHERE gd.SOTK = :stk2 OR gd.SOTK_DOI = :stk3
-                        ORDER BY gd.THOIGIANGD DESC";
+                        ORDER BY gd.THOIGIANGD ASC";
 
         return conn.Query<TransactionHistory>(sql, new { stk1 = stk, stk2 = stk, stk3 = stk }).ToList();
     }

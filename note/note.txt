@@ -16,3 +16,16 @@ xem lai
 
 // Lich su giao dich chi ghi chuyen nhan, khong hien thi so du x
 
+//Lấy lịch sử giao dịch của 1 tài khoản, kèm đúng số dư của TÀI KHOẢN ĐÓ sau mỗi giao dịch.
+    //Dùng 3 tên tham số khác nhau (stk1/stk2/stk3) dù cùng 1 giá trị stk, để né việc Dapper
+    //không tự set BindByName=true cho Oracle (mặc định ODP.NET bind theo VỊ TRÍ, không theo TÊN,
+    //nên 1 tham số dùng lại nhiều lần trong SQL sẽ báo lỗi thiếu biến nếu không xử lý).
+
+//Lich su chia loại
+// Dùng thư viện ghi log
+//Học DI
+// Chuyển src từ consoleapp sang web api service
+
+
+
+// DI container: Service Collection

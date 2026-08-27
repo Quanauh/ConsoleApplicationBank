@@ -30,3 +30,12 @@ C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\runti
 C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\obj\Debug\net10.0\ConsoleA.963D4AC9.Up2Date
 C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\obj\Debug\net10.0\ConsoleApplicationBank.sourcelink.json
 C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Dapper.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.DependencyInjection.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.Options.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.Primitives.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.Logging.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Microsoft.Extensions.Logging.Abstractions.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Serilog.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Serilog.Extensions.Logging.dll
+C:\Users\Admin\OneDrive\Documents\ConsoleApplicationBank\bin\Debug\net10.0\Serilog.Sinks.File.dll
