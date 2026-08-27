@@ -22,7 +22,11 @@ app.MapPut(...)
 app.MapPatch(...)
 app.MapDelete(...)
 ```
+Khởi tạo 1 project web api
 
+```bash
+dotnet new webapi -n HuanBank.Api
+```
 ---
 
 ## 2. Cấu trúc cơ bản
@@ -437,3 +441,18 @@ Có thể đọc đoạn trên thành:
 
 > **Khi client gửi POST `/login`, nhận `LoginRequest` và `BankManager`, sau đó chạy hàm xử lý đăng nhập và trả kết quả về client.**
 ![alt text](image.png)
+
+Sửa file http để test api 
+Ví dụ test đăng nhập 
+```http
+@HuanBank_HostAddress = http://localhost:5128
+
+POST {{HuanBank_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "Stk": "doquanghuan1",
+  "Mk": "2"
+}
+```
+
